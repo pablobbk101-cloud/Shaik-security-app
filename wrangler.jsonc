@@ -1,10 +1,9 @@
 {
-  // Static site served by Cloudflare Workers (assets only, no server code yet).
-  // "name" must match the Worker's name in your Cloudflare dashboard.
+  // Static app served by Cloudflare Workers. "name" must match the Worker in the dashboard.
   "name": "shaik-security-app",
   "compatibility_date": "2026-10-01",
   "assets": {
-    "directory": ".",
+    "directory": "./public",
     "not_found_handling": "single-page-application"
   }
 }
