@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0B0B">
+<title>Shaik CamWatch (test)</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+:root{--red:#D91E18;--red-text:#FF5147;--ink:#0B0B0B;--ink-2:#161616;--line:#2A2A2A;--soft:#CFCFCF;--muted:#9A9A9A;--ok:#22C55E}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--ink);color:#F2F2F2;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px;line-height:1.5}
+.app{max-width:560px;margin:0 auto;min-height:100%;padding:20px 16px calc(24px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:16px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+header b{font-size:18px;letter-spacing:.02em}
+header span{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+h1{font-size:28px;line-height:1.15;margin:8px 0 0}
+p{margin:0;color:var(--soft)}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:56px;border:0;border-radius:10px;font:inherit;font-weight:700;font-size:17px;cursor:pointer;color:#fff;text-decoration:none}
+.btn-red{background:var(--red)}.btn-red:active{background:#B3170F}
+.btn-dark{background:var(--ink-2);border:1px solid var(--line)}
+.btn-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn-small{min-height:48px;font-size:15px}
+.choice{display:flex;flex-direction:column;gap:12px;margin-top:8px}
+.choice .btn{flex-direction:column;gap:2px;min-height:96px}
+.choice small{font-weight:400;font-size:14px;opacity:.85}
+.screen{display:none;flex-direction:column;gap:14px}
+.screen.active{display:flex}
+.video-box{position:relative;background:#000;border-radius:12px;overflow:hidden;aspect-ratio:3/4;border:1px solid var(--line)}
+.video-box video{width:100%;height:100%;object-fit:cover;display:block}
+.video-box.wide{aspect-ratio:auto;min-height:260px}
+.video-box.wide video{object-fit:contain;max-height:70vh}
+.live{position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.7);padding:5px 10px;border-radius:999px;font-size:13px;font-weight:600}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+.dot.on{background:var(--red);animation:pulse 1.4s infinite}
+.dot.ok{background:var(--ok)}
+@keyframes pulse{50%{opacity:.35}}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--soft);font-size:15px}
+.code-card{background:var(--ink-2);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:6px;align-items:center;text-align:center}
+.code{font-size:44px;font-weight:800;letter-spacing:.18em;font-variant-numeric:tabular-nums}
+.status{font-size:14px;color:var(--soft);display:flex;align-items:center;gap:8px;justify-content:center}
+label{font-weight:600;font-size:15px}
+input{width:100%;min-height:56px;border-radius:10px;border:1px solid #3A3A3A;background:#111;color:#fff;font:inherit;font-size:28px;letter-spacing:.2em;text-align:center;padding:8px}
+input:focus{outline:2px solid var(--red-text);outline-offset:2px}
+.note{font-size:13px;color:var(--muted)}
+.back{background:none;border:0;color:var(--red-text);font:inherit;font-weight:600;padding:10px 0;min-height:44px;cursor:pointer;align-self:flex-start}
+.err{color:#FF8A84;font-size:14px;min-height:20px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <b>Shaik CamWatch</b>
+    <span>Test build</span>
+  </header>
+
+  <!-- HOME -->
+  <section class="screen active" id="s-home">
+    <h1>Turn any phone into a security camera</h1>
+    <p>Use one phone as the camera and watch it live from another, anywhere.</p>
+    <div class="choice">
+      <button class="btn btn-red" id="go-cam">Be the camera<small>Use this phone's camera</small></button>
+      <button class="btn btn-dark" id="go-watch">Watch a camera<small>Enter the code from the camera phone</small></button>
+    </div>
+    <p class="note">Tip: for the first test, put both phones on the same Wi-Fi.</p>
+  </section>
+
+  <!-- CAMERA -->
+  <section class="screen" id="s-cam">
+    <button class="back" data-home>← Stop and go back</button>
+    <div class="video-box">
+      <video id="cam-video" autoplay playsinline muted></video>
+      <div class="live"><span class="dot" id="cam-dot"></span><span id="cam-live">Starting</span></div>
+    </div>
+    <div class="code-card">
+      <span class="note">Camera code</span>
+      <span class="code" id="cam-code">------</span>
+      <span class="status" id="cam-status">Connecting to server…</span>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-dark btn-small" id="cam-flip">Switch camera</button>
+      <button class="btn btn-dark btn-small" id="cam-share">Share link</button>
+    </div>
+    <p class="note">Keep this screen open. Plug the phone in if you'll stream for a while.</p>
+    <p class="err" id="cam-err"></p>
+  </section>
+
+  <!-- VIEWER -->
+  <section class="screen" id="s-watch">
+    <button class="back" data-home>← Back</button>
+    <form id="watch-form" style="display:flex;flex-direction:column;gap:10px">
+      <label for="watch-code">Camera code</label>
+      <input id="watch-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off" placeholder="000000" required>
+      <button class="btn btn-red" type="submit">Connect</button>
+    </form>
+    <div class="video-box wide" id="view-box" hidden>
+      <video id="view-video" autoplay playsinline muted></video>
+      <div class="live"><span class="dot" id="view-dot"></span><span id="view-live">Connecting</span></div>
+      <div class="overlay" id="view-overlay">Waiting for video…</div>
+    </div>
+    <div class="btn-row" id="view-actions" hidden>
+      <button class="btn btn-dark btn-small" id="view-snap">Snapshot</button>
+      <button class="btn btn-dark btn-small" id="view-full">Full screen</button>
+    </div>
+    <p class="err" id="view-err"></p>
+  </section>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+const PREFIX = "shaikcam-";               // keeps our codes apart from other PeerJS users
+const $ = id => document.getElementById(id);
+let peer = null, stream = null, facing = "environment", wakeLock = null;
+const calls = new Set();
+
+function showScreen(name){
+  document.querySelectorAll(".screen").forEach(s => s.classList.toggle("active", s.id === "s-" + name));
+}
+function newCode(){ return String(Math.floor(100000 + Math.random() * 900000)); }
+
+function cleanup(){
+  calls.forEach(c => c.close()); calls.clear();
+  if (peer) { peer.destroy(); peer = null; }
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  if (wakeLock) { wakeLock.release().catch(()=>{}); wakeLock = null; }
+  $("view-video").srcObject = null; $("cam-video").srcObject = null;
+}
+document.querySelectorAll("[data-home]").forEach(b => b.addEventListener("click", () => {
+  cleanup(); history.replaceState(null, "", location.pathname); showScreen("home");
+}));
+
+/* ---------- CAMERA PHONE ---------- */
+async function getCamera(){
+  return navigator.mediaDevices.getUserMedia({
+    video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24 } },
+    audio: false
+  });
+}
+async function keepAwake(){
+  try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch(e){}
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && stream && !wakeLock) keepAwake(); });
+
+function updateViewers(){
+  const n = calls.size;
+  $("cam-dot").className = "dot" + (n ? " on" : " ok");
+  $("cam-live").textContent = n ? "LIVE" : "Ready";
+  $("cam-status").textContent = n ? n + " viewer" + (n > 1 ? "s" : "") + " watching" : "Waiting for a viewer";
+}
+
+async function startCamera(){
+  showScreen("cam"); $("cam-err").textContent = "";
+  try {
+    stream = await getCamera();
+  } catch(e) {
+    $("cam-err").textContent = "Camera blocked. Allow camera access in your browser settings, then try again. (" + e.name + ")";
+    return;
+  }
+  $("cam-video").srcObject = stream;
+  keepAwake();
+  openPeer(newCode());
+}
+
+function openPeer(code){
+  peer = new Peer(PREFIX + code);
+  peer.on("open", () => { $("cam-code").textContent = code; updateViewers(); });
+  peer.on("error", err => {
+    if (err.type === "unavailable-id") { peer.destroy(); openPeer(newCode()); return; }
+    $("cam-err").textContent = "Connection problem: " + err.type;
+  });
+  peer.on("disconnected", () => { $("cam-status").textContent = "Reconnecting…"; peer.reconnect(); });
+  // A viewer connects with a data link; we then send them our video.
+  peer.on("connection", conn => {
+    conn.on("open", () => {
+      const call = peer.call(conn.peer, stream);
+      calls.add(call); updateViewers();
+      const drop = () => { calls.delete(call); updateViewers(); };
+      call.on("close", drop); call.on("error", drop); conn.on("close", () => { call.close(); drop(); });
+    });
+  });
+}
+
+$("cam-flip").addEventListener("click", async () => {
+  if (!stream) return;
+  facing = facing === "environment" ? "user" : "environment";
+  try {
+    const next = await getCamera();
+    const track = next.getVideoTracks()[0];
+    calls.forEach(c => {
+      const sender = c.peerConnection && c.peerConnection.getSenders().find(s => s.track && s.track.kind === "video");
+      if (sender) sender.replaceTrack(track);
+    });
+    stream.getTracks().forEach(t => t.stop());
+    stream = next; $("cam-video").srcObject = stream;
+  } catch(e) { $("cam-err").textContent = "Couldn't switch camera."; }
+});
+
+$("cam-share").addEventListener("click", async () => {
+  const code = $("cam-code").textContent;
+  if (!/^\d{6}$/.test(code)) return;
+  const url = location.origin + location.pathname + "?watch=" + code;
+  try {
+    if (navigator.share) await navigator.share({ title: "Watch my camera", text: "Camera code " + code, url });
+    else { await navigator.clipboard.writeText(url); $("cam-status").textContent = "Link copied"; }
+  } catch(e){}
+});
+
+/* ---------- VIEWER PHONE ---------- */
+function watch(code){
+  showScreen("watch"); $("view-err").textContent = "";
+  $("watch-code").value = code;
+  $("view-box").hidden = false; $("view-actions").hidden = false;
+  $("view-overlay").hidden = false; $("view-overlay").textContent = "Connecting to camera " + code + "…";
+  $("view-dot").className = "dot"; $("view-live").textContent = "Connecting";
+  if (peer) peer.destroy();
+  peer = new Peer();
+  peer.on("open", () => {
+    const conn = peer.connect(PREFIX + code, { reliable: true });
+    conn.on("close", () => lost("The camera stopped streaming."));
+  });
+  peer.on("call", call => {
+    call.answer();                       // we only receive video
+    calls.add(call);
+    call.on("stream", remote => {
+      $("view-video").srcObject = remote;
+      $("view-overlay").hidden = true;
+      $("view-dot").className = "dot on"; $("view-live").textContent = "LIVE";
+    });
+    call.on("close", () => lost("The camera stopped streaming."));
+  });
+  peer.on("error", err => {
+    if (err.type === "peer-unavailable") lost("No camera found with code " + code + ". Check the code on the camera phone.");
+    else lost("Connection problem: " + err.type);
+  });
+}
+function lost(msg){
+  $("view-overlay").hidden = false; $("view-overlay").textContent = msg;
+  $("view-dot").className = "dot"; $("view-live").textContent = "Offline";
+}
+$("watch-form").addEventListener("submit", e => {
+  e.preventDefault();
+  const code = $("watch-code").value.replace(/\D/g, "");
+  if (code.length !== 6) { $("view-err").textContent = "Enter the 6-digit code."; return; }
+  watch(code);
+});
+$("view-snap").addEventListener("click", () => {
+  const v = $("view-video"); if (!v.videoWidth) return;
+  const c = document.createElement("canvas"); c.width = v.videoWidth; c.height = v.videoHeight;
+  c.getContext("2d").drawImage(v, 0, 0);
+  const a = document.createElement("a");
+  a.download = "camwatch-" + new Date().toISOString().replace(/[:.]/g, "-") + ".jpg";
+  a.href = c.toDataURL("image/jpeg", 0.9); a.click();
+});
+$("view-full").addEventListener("click", () => {
+  const v = $("view-video");
+  (v.requestFullscreen || v.webkitEnterFullscreen || (()=>{})).call(v);
+});
+
+/* ---------- START ---------- */
+$("go-cam").addEventListener("click", startCamera);
+$("go-watch").addEventListener("click", () => { showScreen("watch"); $("watch-code").focus(); });
+const shared = new URLSearchParams(location.search).get("watch");
+if (shared && /^\d{6}$/.test(shared)) watch(shared);
+if (!window.isSecureContext) alert("This page must be opened over https:// for the camera to work.");
+</script>
+</body>
+</html>
