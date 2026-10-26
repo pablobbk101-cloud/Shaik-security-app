@@ -58,6 +58,19 @@ input:focus{outline:2px solid var(--red-text);outline-offset:2px}
 .tile.off video{opacity:.25}
 .tile-actions{position:absolute;right:8px;bottom:8px;display:flex;gap:6px}
 .tile-actions button{min-width:44px;min-height:44px;border-radius:8px;border:0;background:rgba(0,0,0,.7);color:#fff;font:inherit;font-size:13px;font-weight:600;padding:0 10px;cursor:pointer}
+.add-tile{aspect-ratio:4/3;border:2px dashed #3A3A3A;border-radius:12px;background:transparent;color:var(--soft);font:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;padding:16px;text-align:center}
+.add-tile:hover,.add-tile:focus-visible{border-color:var(--red-text);color:#fff}
+.add-tile .plus{width:56px;height:56px;border-radius:50%;background:var(--red);color:#fff;font-size:34px;line-height:56px;font-weight:300}
+.add-tile b{font-size:17px;color:#fff}
+.add-tile span{font-size:14px}
+dialog{border:1px solid var(--line);border-radius:16px;background:var(--ink-2);color:#F2F2F2;padding:22px;width:min(420px,calc(100vw - 32px))}
+dialog::backdrop{background:rgba(0,0,0,.7)}
+dialog h2{margin:0 0 4px;font-size:22px}
+dialog ol{margin:12px 0;padding-left:20px;color:var(--soft);display:flex;flex-direction:column;gap:6px}
+.qr{background:#fff;border-radius:12px;padding:14px;width:220px;height:220px;margin:6px auto 4px;display:flex;align-items:center;justify-content:center}
+.qr img,.qr canvas{width:192px!important;height:192px!important}
+.dlg-code{text-align:center;font-size:34px;font-weight:800;letter-spacing:.18em;font-variant-numeric:tabular-nums;margin:6px 0 14px}
+.dlg-actions{display:grid;gap:10px}
 .empty{border:1px dashed #3A3A3A;border-radius:12px;padding:32px 20px;text-align:center;color:var(--soft);display:flex;flex-direction:column;gap:8px}
 </style>
 </head>
@@ -65,7 +78,7 @@ input:focus{outline:2px solid var(--red-text);outline-offset:2px}
 <div class="app" id="app">
   <header>
     <b>Shaik CamWatch</b>
-    <span>Test build v3</span>
+    <span>Test build v4</span>
   </header>
 
   <!-- HOME -->
@@ -89,14 +102,16 @@ input:focus{outline:2px solid var(--red-text);outline-offset:2px}
         <div class="status" id="host-status">Connecting to server…</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-dark btn-small" id="host-share">Invite camera</button>
+        <button class="btn btn-red btn-small" id="host-add">+ Add camera</button>
         <button class="btn btn-dark btn-small" id="host-new">New code</button>
       </div>
     </div>
-    <div class="grid" id="grid"></div>
-    <div class="empty" id="grid-empty">
-      <b>No cameras yet</b>
-      <span>On each spare phone, open this app, tap <b>Add as a camera</b> and enter the site code. Or tap <b>Invite camera</b> to send them a link.</span>
+    <div class="grid" id="grid">
+      <button type="button" class="add-tile" id="add-tile">
+        <span class="plus" aria-hidden="true">+</span>
+        <b>Add camera</b>
+        <span id="add-tile-hint">Scan a QR code or send a link to a spare phone</span>
+      </button>
     </div>
     <p class="err" id="host-err"></p>
   </section>
@@ -135,6 +150,25 @@ input:focus{outline:2px solid var(--red-text);outline-offset:2px}
   </section>
 </div>
 
+<dialog id="add-dlg" aria-labelledby="add-title">
+  <h2 id="add-title">Add a camera</h2>
+  <p>On the spare phone:</p>
+  <ol>
+    <li>Scan this QR code with the phone's camera</li>
+    <li>Type a name, like "Front gate"</li>
+    <li>Tap <b>Start camera</b> and allow camera access</li>
+  </ol>
+  <div class="qr" id="qr" aria-label="QR code with the camera invite link"></div>
+  <p class="note" style="text-align:center">Or open the app and enter this site code:</p>
+  <div class="dlg-code" id="dlg-code">------</div>
+  <div class="dlg-actions">
+    <button class="btn btn-red btn-small" id="dlg-share">Send invite link</button>
+    <button class="btn btn-dark btn-small" id="dlg-close">Done</button>
+  </div>
+  <p class="note" id="dlg-msg" style="text-align:center;margin-top:8px"></p>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 const PREFIX = "shaikcam-site-";   // host IDs look like shaikcam-site-123456
@@ -164,7 +198,7 @@ function cleanup(){
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   if (wakeLock) { wakeLock.release().catch(()=>{}); wakeLock = null; }
   $("cam-video").srcObject = null;
-  $("grid").innerHTML = ""; tiles.clear(); updateEmpty();
+  $("grid").querySelectorAll(".tile").forEach(e => e.remove()); tiles.clear(); updateEmpty();
 }
 document.querySelectorAll("[data-home]").forEach(b => b.addEventListener("click", () => {
   cleanup(); history.replaceState(null, "", location.pathname); showScreen("home");
@@ -175,7 +209,7 @@ const tiles = new Map();   // camId -> { el, video, call, name }
 
 function updateEmpty(){
   const n = [...tiles.values()].filter(t => t.live).length;
-  $("grid-empty").hidden = tiles.size > 0;
+  $("add-tile-hint").textContent = tiles.size ? "Add another phone to this site" : "Scan a QR code or send a link to a spare phone";
   if (mode === "host" && $("host-code").textContent.match(/^\d{6}$/))
     $("host-status").textContent = n ? n + " camera" + (n > 1 ? "s" : "") + " live" : "Waiting for cameras";
 }
@@ -190,7 +224,7 @@ function makeTile(camId, name){
   el.querySelector('[data-a="snap"]').onclick = () => snapshot(video, name);
   el.querySelector('[data-a="full"]').onclick = () => (video.requestFullscreen || video.webkitEnterFullscreen || (()=>{})).call(video);
   el.querySelector('[data-a="remove"]').onclick = () => { const t = tiles.get(camId); if (t && t.call) t.call.close(); el.remove(); tiles.delete(camId); updateEmpty(); };
-  $("grid").appendChild(el);
+  $("grid").insertBefore(el, $("add-tile"));
   const t = { el, video, call: null, name, live: false };
   tiles.set(camId, t); return t;
 }
@@ -244,12 +278,25 @@ $("host-new").addEventListener("click", () => {
   const code = newCode(); store.set("hostCode", code);
   cleanup(); mode = "host"; showScreen("host"); keepAwake(); openHost(code, 0);
 });
-$("host-share").addEventListener("click", async () => {
-  const code = $("host-code").textContent; if (!/^\d{6}$/.test(code)) return;
-  const url = location.origin + location.pathname + "?join=" + code;
+function inviteUrl(){ return location.origin + location.pathname + "?join=" + $("host-code").textContent; }
+function openAddDialog(){
+  const code = $("host-code").textContent;
+  if (!/^\d{6}$/.test(code)) return;
+  $("dlg-code").textContent = code; $("dlg-msg").textContent = "";
+  const box = $("qr"); box.innerHTML = "";
+  if (window.QRCode) new QRCode(box, { text: inviteUrl(), width: 192, height: 192, correctLevel: QRCode.CorrectLevel.M });
+  else box.hidden = true;
+  const dlg = $("add-dlg");
+  if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
+}
+$("host-add").addEventListener("click", openAddDialog);
+$("add-tile").addEventListener("click", openAddDialog);
+$("dlg-close").addEventListener("click", () => $("add-dlg").close ? $("add-dlg").close() : $("add-dlg").removeAttribute("open"));
+$("dlg-share").addEventListener("click", async () => {
+  const url = inviteUrl(), code = $("host-code").textContent;
   try {
-    if (navigator.share) await navigator.share({ title: "Add a camera", text: "Open this on the camera phone. Site code " + code, url });
-    else { await navigator.clipboard.writeText(url); $("host-status").textContent = "Invite link copied"; }
+    if (navigator.share) await navigator.share({ title: "Add a camera", text: "Open this on the camera phone to add it to my CamWatch. Site code " + code, url });
+    else { await navigator.clipboard.writeText(url); $("dlg-msg").textContent = "Invite link copied"; }
   } catch(e){}
 });
 function snapshot(video, name){
