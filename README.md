@@ -2,8 +2,14 @@
 
 Turns spare phones into live security cameras and shows them all on one monitor phone. First step towards the Shaik Security camera app.
 
+## Deploy on Cloudflare (auto-updates on every push)
+1. Cloudflare dashboard → Workers & Pages → your Worker → Settings → Build → **Connect** → this repo, branch `main`.
+2. Make sure `name` in `wrangler.jsonc` matches the Worker's name.
+3. Build command: leave empty. Deploy command: `npx wrangler deploy`.
+4. Check the version badge in the app header (e.g. "Test build v4") to confirm a phone has the latest build.
+
 ## Try it
-1. Turn on GitHub Pages: Settings → Pages → Deploy from a branch → `main`, `/ (root)`.
+1. Open the Worker's link (or turn on GitHub Pages: Settings → Pages → `main`, `/ (root)`).
 2. On the **monitor phone**, open the link and tap **View cameras**. Note the 6-digit site code (it stays the same on that phone).
 3. On each **camera phone**, open the link, tap **Add as a camera**, enter the site code and a name (e.g. "Front gate"). Or tap **Invite camera** on the monitor to send a ready-made link.
 4. Every camera appears as a tile on the monitor. Cameras keep retrying, so they reconnect by themselves if the monitor reloads or drops.
