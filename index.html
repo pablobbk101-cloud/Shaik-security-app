@@ -114,6 +114,12 @@ const PREFIX = "shaikcam-";               // keeps our codes apart from other Pe
 const $ = id => document.getElementById(id);
 let peer = null, stream = null, facing = "environment", wakeLock = null;
 const calls = new Set();
+// STUN helps phones on different networks find a route to each other
+const PEER_OPTS = { config: { iceServers: [
+  { urls: "stun:stun.cloudflare.com:3478" },
+  { urls: "stun:stun.l.google.com:19302" }
+]}};
+let connecting = false;
 
 function showScreen(name){
   document.querySelectorAll(".screen").forEach(s => s.classList.toggle("active", s.id === "s-" + name));
@@ -164,21 +170,21 @@ async function startCamera(){
 }
 
 function openPeer(code){
-  peer = new Peer(PREFIX + code);
+  peer = new Peer(PREFIX + code, PEER_OPTS);
   peer.on("open", () => { $("cam-code").textContent = code; updateViewers(); });
   peer.on("error", err => {
     if (err.type === "unavailable-id") { peer.destroy(); openPeer(newCode()); return; }
+    if (err.type === "peer-unavailable") return;   // a viewer left; nothing to fix
     $("cam-err").textContent = "Connection problem: " + err.type;
   });
   peer.on("disconnected", () => { $("cam-status").textContent = "Reconnecting…"; peer.reconnect(); });
-  // A viewer connects with a data link; we then send them our video.
-  peer.on("connection", conn => {
-    conn.on("open", () => {
-      const call = peer.call(conn.peer, stream);
-      calls.add(call); updateViewers();
-      const drop = () => { calls.delete(call); updateViewers(); };
-      call.on("close", drop); call.on("error", drop); conn.on("close", () => { call.close(); drop(); });
-    });
+  // A viewer calls us; we answer with our camera video.
+  peer.on("call", call => {
+    call.answer(stream);
+    calls.add(call); updateViewers();
+    const drop = () => { calls.delete(call); updateViewers(); };
+    call.on("close", drop); call.on("error", drop);
+    call.on("iceStateChanged", s => { if (s === "failed" || s === "disconnected") { call.close(); drop(); } });
   });
 }
 
@@ -208,21 +214,28 @@ $("cam-share").addEventListener("click", async () => {
 });
 
 /* ---------- VIEWER PHONE ---------- */
+// A blank 2x2 video track so the call can carry video both ways (we only show the camera's).
+function placeholderStream(){
+  const c = document.createElement("canvas"); c.width = 2; c.height = 2;
+  c.getContext("2d").fillRect(0, 0, 2, 2);
+  return c.captureStream(1);
+}
 function watch(code){
+  if (connecting) return;
+  connecting = true; setTimeout(() => connecting = false, 4000);
   showScreen("watch"); $("view-err").textContent = "";
   $("watch-code").value = code;
   $("view-box").hidden = false; $("view-actions").hidden = false;
   $("view-overlay").hidden = false; $("view-overlay").textContent = "Connecting to camera " + code + "…";
   $("view-dot").className = "dot"; $("view-live").textContent = "Connecting";
+  calls.forEach(c => c.close()); calls.clear();
   if (peer) peer.destroy();
-  peer = new Peer();
+  peer = new Peer(PEER_OPTS);
   peer.on("open", () => {
-    const conn = peer.connect(PREFIX + code, { reliable: true });
-    conn.on("close", () => lost("The camera stopped streaming."));
-  });
-  peer.on("call", call => {
-    call.answer();                       // we only receive video
+    const call = peer.call(PREFIX + code, placeholderStream());
     calls.add(call);
+    call.on("error", () => lost("Couldn't reach the camera."));
+    call.on("iceStateChanged", s => { if (s === "failed") lost("Couldn't connect. Try both phones on the same Wi-Fi."); });
     call.on("stream", remote => {
       $("view-video").srcObject = remote;
       $("view-overlay").hidden = true;
